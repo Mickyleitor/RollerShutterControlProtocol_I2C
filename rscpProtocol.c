@@ -153,7 +153,7 @@ int32_t rscpGetRxByteBlocking(uint8_t * readByte, uint32_t timeout_ticks){
         if ( timeout_ticks-- == 0){
             return -1;
         }
-        yield();
+        rscpRxWaitingCallback();
     }
     return 0;
 }
