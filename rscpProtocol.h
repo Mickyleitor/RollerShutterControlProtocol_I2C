@@ -128,10 +128,16 @@ struct __attribute__ ((__packed__)) RSCP_Reply_switchrelay
 };
 
 #if RSCP_DEVICE_IS_MASTER
+
 RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t timeout_ticks);
+RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay * reply, uint32_t timeout_ticks);
 RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_t timeout_ticks);
-#endif
+
+#else
+
 RSCP_ErrorType rscpHandle(uint32_t timeout_ticks);
+
+#endif
 
 #include "rscpProtocol.c"
 

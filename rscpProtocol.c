@@ -125,6 +125,51 @@ RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t 
     return err;
 }
 
+RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay * reply, uint32_t timeout_ticks){
+    RSCP_ErrorType err = RSCP_ERR_OK;
+    uint32_t txBufferIndex = 0;
+    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+
+    // Fill txBuffer
+    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
+    txBuffer[txBufferIndex++] = 3;
+    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SWITCH_RELAY;
+    txBuffer[txBufferIndex++] = 0x00;               // No data
+
+    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBufferIndex - 1);
+    txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
+    txBuffer[txBufferIndex++] = (crc & 0xFF);
+
+    if ( rscpSendSlotCallback(txBuffer, txBufferIndex) < 0){
+        return RSCP_ERR_TX_FAILED;
+    }
+
+    struct RSCP_frame frame;
+    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + sizeof(struct RSCP_Reply_switchrelay) + sizeof(frame.crc);
+
+    if ( rscpRequestSlotCallback(rxBufferMaxLength) < 0){
+        return RSCP_ERR_REQUEST_FAILED;
+    }
+
+    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
+        return err;
+    }
+
+    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
+        return RSCP_ERR_MALFORMED;
+    }
+
+    if(frame.command != RSCP_CMD_GET_SWITCH_RELAY){
+        return RSCP_ERR_INVALID_ANSWER;
+    }
+
+    for (uint32_t i = 0; i < sizeof(struct RSCP_Reply_switchrelay); i++) {
+        ((uint8_t *)reply)[i] = frame.data[i];
+    }
+
+    return err;
+}
+
 RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_t timeout_ticks){
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
@@ -134,7 +179,6 @@ RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_
     txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
     txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Arg_buzzer_action);
     txBuffer[txBufferIndex++] = RSCP_CMD_SET_BUZZER_ACTION;
-    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Arg_buzzer_action);
 
     // Use memcpy to copy struct data to txBuffer
     memcpy(&txBuffer[txBufferIndex], arg, sizeof(struct RSCP_Arg_buzzer_action));
@@ -148,7 +192,26 @@ RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_
         return RSCP_ERR_TX_FAILED;
     }
 
-    return err;
+    struct RSCP_frame frame;
+    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + 1 + sizeof(frame.crc);
+
+    if ( rscpRequestSlotCallback(rxBufferMaxLength) < 0){
+        return RSCP_ERR_REQUEST_FAILED;
+    }
+
+    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
+        return err;
+    }
+
+    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
+        return RSCP_ERR_MALFORMED;
+    }
+
+    if(frame.command != RSCP_CMD_SET_BUZZER_ACTION){
+        return RSCP_ERR_INVALID_ANSWER;
+    }
+
+    return (RSCP_ErrorType)frame.data[0];
 }
 
 #else
@@ -236,8 +299,24 @@ RSCP_ErrorType rscpGetSwitchRelay(void){
     return err;
 }
 
-RSCP_ErrorType rscpSendFail(void){
-    return RSCP_ERR_NOT_SUPPORTED;
+RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode){
+    RSCP_ErrorType err = RSCP_ERR_OK;
+    uint32_t txBufferIndex = 0;
+    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+
+    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
+    txBuffer[txBufferIndex++] = 3;
+    txBuffer[txBufferIndex++] = command;
+    txBuffer[txBufferIndex++] = errorCode;
+
+    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
+    txBuffer[txBufferIndex++] = (crc >> 8);
+    txBuffer[txBufferIndex++] = (crc & 0xFF);
+
+    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+        err = RSCP_ERR_TX_FAILED;
+    }
+    return err;
 }
 
 RSCP_ErrorType rscpHandle(uint32_t timeout_ticks){
@@ -257,22 +336,27 @@ RSCP_ErrorType rscpHandle(uint32_t timeout_ticks){
         case RSCP_CMD_CPU_QUERY:
             return rscpHandleCPUQuery();
         case RSCP_CMD_SET_SHUTTER_ACTION:
-            return rscpSetShutterActionCallback((struct RSCP_Arg_rollershutter *)&frame.data[0]);
+            err = rscpSetShutterActionCallback((struct RSCP_Arg_rollershutter *)&frame.data[0]);
+            break;
         case RSCP_CMD_SET_SHUTTER_POSITION:
-            return rscpSetShutterPositionCallback((struct RSCP_Arg_rollershutterposition *)&frame.data[0]);
+            err = rscpSetShutterPositionCallback((struct RSCP_Arg_rollershutterposition *)&frame.data[0]);
+            break;
         case RSCP_CMD_GET_SHUTTER_POSITION:
             return rscpGetShutterPosition();
         case RSCP_CMD_SET_SWITCH_RELAY:
-            return rscpSetSwitchRelayCallback((struct RSCP_Arg_switchrelay *)&frame.data[0]);
+            err = rscpSetSwitchRelayCallback((struct RSCP_Arg_switchrelay *)&frame.data[0]);
+            break;
         case RSCP_CMD_GET_SWITCH_RELAY:
             return rscpGetSwitchRelay();
         case RSCP_CMD_SET_BUZZER_ACTION:
-            return rscpSetBuzzerActionCallback((struct RSCP_Arg_buzzer_action *)&frame.data[0]);
+            err = rscpSetBuzzerActionCallback((struct RSCP_Arg_buzzer_action *)&frame.data[0]);
+            break;
         default:
-            // Send failure
-            (void)rscpSendFail();
-            return RSCP_ERR_NOT_SUPPORTED;
+            err = RSCP_ERR_NOT_SUPPORTED;
+            break;
     }
+
+    return rscpSendAnswer(frame.command, err);
 }
 
 #endif
