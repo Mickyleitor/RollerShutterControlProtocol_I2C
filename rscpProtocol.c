@@ -31,123 +31,6 @@
 
 //---[ Public Functions ]-------------------------------------------------------
 
-RSCP_ErrorType rscpHandleCPUQuery(void){
-    RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
-
-    // Fill reply
-    struct RSCP_Reply_cpuquery reply;
-    reply.flags = 0;
-    reply.crcType = RSCP_DEF_CRC_TYPE_MODBUS16;
-    reply.protocolversion = RSCP_DEF_PROTOCOL_VERSION;
-    reply.cpuType = RSCP_DEF_CPU_TYPE_ATMEGA328P_8MHZ;
-    reply.swversion = RSCP_DEF_SWVERSION_VERSION;
-    reply.packetMaxLen = sizeof(struct RSCP_frame);
-    
-    // Fill txBuffer
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Reply_cpuquery);
-    txBuffer[txBufferIndex++] = RSCP_CMD_CPU_QUERY;
-
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_cpuquery));
-    txBufferIndex += sizeof(struct RSCP_Reply_cpuquery);
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
-    txBuffer[txBufferIndex++] = (crc >> 8);
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    Serial.print("txBuffer : ");
-    for (uint32_t i = 0; i < txBufferIndex; i++) {
-        Serial.print(txBuffer[i], HEX);
-        Serial.print(" ");
-    }
-    Serial.println();
-    
-    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
-        err = RSCP_ERR_TX_FAILED;
-    }
-    return err;
-}
-
-RSCP_ErrorType rscpSetShutterAction(struct RSCP_frame * frame){
-    struct RSCP_Arg_rollershutter * data = (struct RSCP_Arg_rollershutter *)frame->data;
-    (void)rscpSetShutterActionCallback(data);
-    // TODO: Answer?
-    return RSCP_ERR_NOT_SUPPORTED;
-}
-
-RSCP_ErrorType rscpSetShutterPosition(struct RSCP_frame * frame){
-    struct RSCP_Arg_rollershutterposition * data = (struct RSCP_Arg_rollershutterposition *)frame->data;
-    (void)rscpSetShutterPositionCallback(data);
-    // TODO: Answer?
-    return RSCP_ERR_NOT_SUPPORTED;
-}
-
-RSCP_ErrorType rscpGetShutterPosition(void){
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
-
-    struct RSCP_Reply_rollershutterposition reply;
-    (void)rscpGetShutterPositionCallback(&reply);
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Reply_rollershutterposition) + 2;
-    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SHUTTER_POSITION;
-
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_rollershutterposition));
-    txBufferIndex += sizeof(struct RSCP_Reply_rollershutterposition);
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
-    txBuffer[txBufferIndex++] = (crc >> 8);
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-    (void)txBuffer;
-    // TODO: Send txBuffer
-    return RSCP_ERR_NOT_SUPPORTED;
-}
-
-RSCP_ErrorType rscpSetSwitchRelay(struct RSCP_frame * frame){
-    struct RSCP_Arg_switchrelay * data = (struct RSCP_Arg_switchrelay *)frame->data;
-    (void)rscpSetSwitchRelayCallback(data);
-    // TODO: Answer?
-    return RSCP_ERR_NOT_SUPPORTED;
-}
-
-RSCP_ErrorType rscpGetSwitchRelay(void){
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
-
-    struct RSCP_Reply_switchrelay reply;
-    rscpGetSwitchRelayCallback(&reply);
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Reply_switchrelay) + 2;
-    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SWITCH_RELAY;
-
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_switchrelay));
-    txBufferIndex += sizeof(struct RSCP_Reply_switchrelay);
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
-    txBuffer[txBufferIndex++] = (crc >> 8);
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-    (void)txBuffer;
-    // TODO: Send txBuffer
-    return RSCP_ERR_NOT_SUPPORTED;
-}
-
-RSCP_ErrorType rscpSetBuzzerVolume(struct RSCP_frame * frame){
-    struct RSCP_Arg_buzzer_volume * data = (struct RSCP_Arg_buzzer_volume *)frame->data;
-    (void)rscpSetBuzzerVolumeCallback(data);
-    return RSCP_ERR_OK;
-}
-
-RSCP_ErrorType rscpSetBuzzerAction(struct RSCP_frame * frame){
-    struct RSCP_Arg_buzzer_action * data = (struct RSCP_Arg_buzzer_action *)frame->data;
-    (void)rscpSetBuzzerActionCallback(data);
-    return RSCP_ERR_OK;
-}
-
 int32_t rscpGetRxByteBlocking(uint8_t * readByte, uint32_t timeout_ticks){
     while(rscpGetRxByteCallback(readByte) < 0){
         if ( timeout_ticks-- == 0){
@@ -156,10 +39,6 @@ int32_t rscpGetRxByteBlocking(uint8_t * readByte, uint32_t timeout_ticks){
         rscpRxWaitingCallback();
     }
     return 0;
-}
-
-RSCP_ErrorType rscpSendFail(void){
-    return RSCP_ERR_NOT_SUPPORTED;
 }
 
 RSCP_ErrorType rscpGetMsg(struct RSCP_frame * frame, uint32_t timeout_ticks){
@@ -198,43 +77,6 @@ RSCP_ErrorType rscpGetMsg(struct RSCP_frame * frame, uint32_t timeout_ticks){
         }
     }
     return RSCP_ERR_OVERFLOW;
-}
-
-RSCP_ErrorType rscpHandle(uint32_t timeout_ticks){
-    RSCP_ErrorType err = RSCP_ERR_OK;
-    struct RSCP_frame frame;
-    memset(&frame, 0, sizeof(frame));
-
-    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
-        return err;
-    }
-    
-    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
-        return RSCP_ERR_MALFORMED;
-    }
-
-    switch (frame.command){
-        case RSCP_CMD_CPU_QUERY:
-            return rscpHandleCPUQuery();
-        case RSCP_CMD_SET_SHUTTER_ACTION:
-            return rscpSetShutterAction(&frame);
-        case RSCP_CMD_SET_SHUTTER_POSITION:
-            return rscpSetShutterPosition(&frame);
-        case RSCP_CMD_GET_SHUTTER_POSITION:
-            return rscpGetShutterPosition();
-        case RSCP_CMD_SET_SWITCH_RELAY:
-            return rscpSetSwitchRelay(&frame);
-        case RSCP_CMD_GET_SWITCH_RELAY:
-            return rscpGetSwitchRelay();
-        case RSCP_CMD_SET_BUZZER_VOLUME:
-            return rscpSetBuzzerVolume(&frame);
-        case RSCP_CMD_SET_BUZZER_ACTION:
-            return rscpSetBuzzerAction(&frame);
-        default:
-            // Send failure
-            (void)rscpSendFail();
-            return RSCP_ERR_NOT_SUPPORTED;
-    }
 }
 
 #if RSCP_DEVICE_IS_MASTER
@@ -280,6 +122,157 @@ RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t 
         ((uint8_t *)reply)[i] = frame.data[i];
     }
 
-    return RSCP_ERR_OK;
+    return err;
 }
+
+RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_t timeout_ticks){
+    RSCP_ErrorType err = RSCP_ERR_OK;
+    uint32_t txBufferIndex = 0;
+    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+
+    // Fill txBuffer
+    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
+    txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Arg_buzzer_action);
+    txBuffer[txBufferIndex++] = RSCP_CMD_SET_BUZZER_ACTION;
+    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Arg_buzzer_action);
+
+    // Use memcpy to copy struct data to txBuffer
+    memcpy(&txBuffer[txBufferIndex], arg, sizeof(struct RSCP_Arg_buzzer_action));
+    txBufferIndex += sizeof(struct RSCP_Arg_buzzer_action);
+
+    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBufferIndex - 1);
+    txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
+    txBuffer[txBufferIndex++] = (crc & 0xFF);
+
+    if ( rscpSendSlotCallback(txBuffer, txBufferIndex) < 0){
+        return RSCP_ERR_TX_FAILED;
+    }
+
+    return err;
+}
+
+#else
+
+RSCP_ErrorType rscpHandleCPUQuery(void){
+    RSCP_ErrorType err = RSCP_ERR_OK;
+    uint32_t txBufferIndex = 0;
+    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+
+    // Fill reply
+    struct RSCP_Reply_cpuquery reply;
+    reply.flags = 0;
+    reply.crcType = RSCP_DEF_CRC_TYPE_MODBUS16;
+    reply.protocolversion = RSCP_DEF_PROTOCOL_VERSION;
+    reply.cpuType = RSCP_DEF_CPU_TYPE_ATMEGA328P_8MHZ;
+    reply.swversion = RSCP_DEF_SWVERSION_VERSION;
+    reply.packetMaxLen = sizeof(struct RSCP_frame);
+    
+    // Fill txBuffer
+    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
+    txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Reply_cpuquery);
+    txBuffer[txBufferIndex++] = RSCP_CMD_CPU_QUERY;
+
+    // Use memcpy to copy struct data to txBuffer
+    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_cpuquery));
+    txBufferIndex += sizeof(struct RSCP_Reply_cpuquery);
+
+    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
+    txBuffer[txBufferIndex++] = (crc >> 8);
+    txBuffer[txBufferIndex++] = (crc & 0xFF);
+    
+    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+        err = RSCP_ERR_TX_FAILED;
+    }
+    return err;
+}
+
+RSCP_ErrorType rscpGetShutterPosition(void){
+    RSCP_ErrorType err = RSCP_ERR_OK;
+    uint32_t txBufferIndex = 0;
+    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+
+    struct RSCP_Reply_rollershutterposition reply;
+    (void)rscpGetShutterPositionCallback(&reply);
+    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
+    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Reply_rollershutterposition) + 2;
+    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SHUTTER_POSITION;
+
+    // Use memcpy to copy struct data to txBuffer
+    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_rollershutterposition));
+    txBufferIndex += sizeof(struct RSCP_Reply_rollershutterposition);
+
+    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
+    txBuffer[txBufferIndex++] = (crc >> 8);
+    txBuffer[txBufferIndex++] = (crc & 0xFF);
+
+    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+        err = RSCP_ERR_TX_FAILED;
+    }
+    return err;
+}
+
+RSCP_ErrorType rscpGetSwitchRelay(void){
+    RSCP_ErrorType err = RSCP_ERR_OK;
+    uint32_t txBufferIndex = 0;
+    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+
+    struct RSCP_Reply_switchrelay reply;
+    rscpGetSwitchRelayCallback(&reply);
+    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
+    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Reply_switchrelay) + 2;
+    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SWITCH_RELAY;
+
+    // Use memcpy to copy struct data to txBuffer
+    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_switchrelay));
+    txBufferIndex += sizeof(struct RSCP_Reply_switchrelay);
+
+    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
+    txBuffer[txBufferIndex++] = (crc >> 8);
+    txBuffer[txBufferIndex++] = (crc & 0xFF);
+
+    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+        err = RSCP_ERR_TX_FAILED;
+    }
+    return err;
+}
+
+RSCP_ErrorType rscpSendFail(void){
+    return RSCP_ERR_NOT_SUPPORTED;
+}
+
+RSCP_ErrorType rscpHandle(uint32_t timeout_ticks){
+    RSCP_ErrorType err = RSCP_ERR_OK;
+    struct RSCP_frame frame;
+    memset(&frame, 0, sizeof(frame));
+
+    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
+        return err;
+    }
+    
+    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
+        return RSCP_ERR_MALFORMED;
+    }
+
+    switch (frame.command){
+        case RSCP_CMD_CPU_QUERY:
+            return rscpHandleCPUQuery();
+        case RSCP_CMD_SET_SHUTTER_ACTION:
+            return rscpSetShutterActionCallback((struct RSCP_Arg_rollershutter *)&frame.data[0]);
+        case RSCP_CMD_SET_SHUTTER_POSITION:
+            return rscpSetShutterPositionCallback((struct RSCP_Arg_rollershutterposition *)&frame.data[0]);
+        case RSCP_CMD_GET_SHUTTER_POSITION:
+            return rscpGetShutterPosition();
+        case RSCP_CMD_SET_SWITCH_RELAY:
+            return rscpSetSwitchRelayCallback((struct RSCP_Arg_switchrelay *)&frame.data[0]);
+        case RSCP_CMD_GET_SWITCH_RELAY:
+            return rscpGetSwitchRelay();
+        case RSCP_CMD_SET_BUZZER_ACTION:
+            return rscpSetBuzzerActionCallback((struct RSCP_Arg_buzzer_action *)&frame.data[0]);
+        default:
+            // Send failure
+            (void)rscpSendFail();
+            return RSCP_ERR_NOT_SUPPORTED;
+    }
+}
+
 #endif

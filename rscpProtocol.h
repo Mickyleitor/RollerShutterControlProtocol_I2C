@@ -34,8 +34,7 @@
 #define RSCP_CMD_GET_SHUTTER_POSITION                                   (0x0006) // Get shutter position
 #define RSCP_CMD_SET_SWITCH_RELAY                                       (0x0007) // Set switch relay
 #define RSCP_CMD_GET_SWITCH_RELAY                                       (0x0008) // Get switch relay
-#define RSCP_CMD_SET_BUZZER_VOLUME                                      (0x0009) // Increase or decrease buzzer volume
-#define RSCP_CMD_SET_BUZZER_ACTION                                      (0x000A) // Set buzzer action
+#define RSCP_CMD_SET_BUZZER_ACTION                                      (0x0009) // Set buzzer action
 
 // RSCP_CMD_CPU_QUERY
 #define RSCP_DEF_PROTOCOL_VERSION                                         (0x01)
@@ -56,17 +55,19 @@
 #define RSCP_DEF_SWITCH_RELAY_ON                                          (0x02)
 
 // RSCP_CMD_BUZZER_ACTION
-#define RSCP_DEF_BUZZER_ACTION_BUTTON_BEEP                                (0x01)
+#define RSCP_DEF_BUZZER_ACTION_ON                                         (0x01)
+#define RSCP_DEF_BUZZER_ACTION_OFF                                        (0x02)
 
 typedef enum {
-    RSCP_ERR_OK = 0,
-    RSCP_ERR_TIMEOUT = -1,
-    RSCP_ERR_OVERFLOW = -2,
-    RSCP_ERR_MALFORMED = -3,
-    RSCP_ERR_NOT_SUPPORTED = -4,
-    RSCP_ERR_TX_FAILED = -5,
-    RSCP_ERR_REQUEST_FAILED = -6,
-    RSCP_ERR_INVALID_ANSWER = -7,
+    RSCP_ERR_OK                 =  0,
+    RSCP_ERR_TIMEOUT            = -1,
+    RSCP_ERR_OVERFLOW           = -2,
+    RSCP_ERR_MALFORMED          = -3,
+    RSCP_ERR_NOT_SUPPORTED      = -4,
+    RSCP_ERR_TX_FAILED          = -5,
+    RSCP_ERR_REQUEST_FAILED     = -6,
+    RSCP_ERR_TASK_BUFFER_FULL   = -7,
+    RSCP_ERR_INVALID_ANSWER     = -8,
 } RSCP_ErrorType;
 
 struct RSCP_frame
@@ -98,14 +99,11 @@ struct __attribute__ ((__packed__)) RSCP_Arg_switchrelay
     uint8_t status;
 };
 
-struct __attribute__ ((__packed__)) RSCP_Arg_buzzer_volume
-{
-    uint8_t volume;
-};
-
 struct __attribute__ ((__packed__)) RSCP_Arg_buzzer_action
 {
     uint8_t action;
+    uint32_t volume;
+    uint32_t duration_ms;
 };
 
 struct __attribute__ ((__packed__)) RSCP_Reply_cpuquery
@@ -131,6 +129,7 @@ struct __attribute__ ((__packed__)) RSCP_Reply_switchrelay
 
 #if RSCP_DEVICE_IS_MASTER
 RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t timeout_ticks);
+RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_t timeout_ticks);
 #endif
 RSCP_ErrorType rscpHandle(uint32_t timeout_ticks);
 
