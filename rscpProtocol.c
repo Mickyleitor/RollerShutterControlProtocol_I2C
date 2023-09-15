@@ -1,17 +1,19 @@
-/*! \file **********************************************************************
+/**
+ * @file rscpProtocol.c
+ * @brief Roller Shutter Control Panel Protocol (RSCP) for i2c communication
  *
- *  \brief  Roller Shutter Control Panel Protocol (RSCP) for i2c communication
- *  This protocol is used to communicate between the main CPU and radio module
+ * This protocol is used to communicate between the main CPU and radio module.
  *
- *  \author MickySim: https://www.mickysim.com
- *
- *  Copyright (c) 2023 MickySim All rights reserved.
- ******************************************************************************/
+ * @author MickySim: https://www.mickysim.com
+ * @date 2023
+ * @copyright
+ * Copyright (c) 2023 MickySim All rights reserved.
+ */
 
 //---[ Includes ]---------------------------------------------------------------
 
-#include "stdint.h"
-#include "stdbool.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 #include "rscpProtocol.h"
 
@@ -31,9 +33,16 @@
 
 //---[ Public Functions ]-------------------------------------------------------
 
-int32_t rscpGetRxByteBlocking(uint8_t * readByte, uint32_t timeout_ticks){
-    while(rscpGetRxByteCallback(readByte) < 0){
-        if ( timeout_ticks-- == 0){
+/**
+ * @brief Blocking function to get a byte from the receive buffer.
+ *
+ * @param readByte Pointer to the variable to store the received byte.
+ * @param timeout_ticks The timeout duration in ticks.
+ * @return 0 on success, -1 on timeout.
+ */
+int32_t rscpGetRxByteBlocking(uint8_t *readByte, uint32_t timeout_ticks) {
+    while (rscpGetRxByteCallback(readByte) < 0) {
+        if (timeout_ticks-- == 0) {
             return -1;
         }
         rscpRxWaitingCallback();
@@ -41,37 +50,44 @@ int32_t rscpGetRxByteBlocking(uint8_t * readByte, uint32_t timeout_ticks){
     return 0;
 }
 
-RSCP_ErrorType rscpGetMsg(struct RSCP_frame * frame, uint32_t timeout_ticks){
+/**
+ * @brief Receives an RSCP message.
+ *
+ * @param frame Pointer to the RSCP frame to be filled.
+ * @param timeout_ticks The timeout duration in ticks.
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpGetMsg(struct RSCP_frame *frame, uint32_t timeout_ticks) {
     uint32_t bufferIndex = 0;
     uint8_t rscpRxStatus = 0;
     uint8_t readByte;
-    while(bufferIndex < sizeof(frame->data)){
-        if(rscpGetRxByteBlocking(&readByte, timeout_ticks) < 0){
+    while (bufferIndex < sizeof(frame->data)) {
+        if (rscpGetRxByteBlocking(&readByte, timeout_ticks) < 0) {
             return RSCP_ERR_TIMEOUT;
         }
-        switch (rscpRxStatus){
-            case 0 : // Waiting for length byte
-                if(readByte != RSCP_PREAMBLE_BYTE){
+        switch (rscpRxStatus) {
+            case 0: // Waiting for length byte
+                if (readByte != RSCP_PREAMBLE_BYTE) {
                     frame->length = readByte;
                     rscpRxStatus = 1;
                 }
                 break;
-            case 1 : // Waiting for command byte
+            case 1: // Waiting for command byte
                 frame->command = readByte;
                 rscpRxStatus = 2;
                 break;
-            case 2 : // Waiting for data bytes
+            case 2: // Waiting for data bytes
                 frame->data[bufferIndex++] = readByte;
                 // Retrieve CRC by the current buffer index
-                if(bufferIndex >= (uint32_t)(frame->length - sizeof(frame->crc))){
+                if (bufferIndex >= (uint32_t)(frame->length - sizeof(frame->crc))) {
                     rscpRxStatus = 3;
                 }
                 break;
-            case 3 : // Waiting for CRC high byte
+            case 3: // Waiting for CRC high byte
                 frame->crc = (readByte << 8);
                 rscpRxStatus = 4;
                 break;
-            case 4 : // Waiting for CRC low byte
+            case 4: // Waiting for CRC low byte
                 frame->crc |= readByte;
                 return RSCP_ERR_OK;
         }
@@ -80,7 +96,15 @@ RSCP_ErrorType rscpGetMsg(struct RSCP_frame * frame, uint32_t timeout_ticks){
 }
 
 #if RSCP_DEVICE_IS_MASTER
-RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t timeout_ticks){
+
+/**
+ * @brief Sends a CPU query request and receives the reply.
+ *
+ * @param reply Pointer to the reply structure to be filled.
+ * @param timeout_ticks The timeout duration in ticks.
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery *reply, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
     uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
@@ -95,26 +119,26 @@ RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t 
     txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
     txBuffer[txBufferIndex++] = (crc & 0xFF);
 
-    if ( rscpSendSlotCallback(txBuffer, txBufferIndex) < 0){
+    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
         return RSCP_ERR_TX_FAILED;
     }
 
     struct RSCP_frame frame;
     uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + sizeof(struct RSCP_Reply_cpuquery) + sizeof(frame.crc);
 
-    if ( rscpRequestSlotCallback(rxBufferMaxLength) < 0){
+    if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
         return RSCP_ERR_REQUEST_FAILED;
     }
 
-    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
+    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
         return err;
     }
-    
-    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
+
+    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
         return RSCP_ERR_MALFORMED;
     }
 
-    if(frame.command != RSCP_CMD_CPU_QUERY){
+    if (frame.command != RSCP_CMD_CPU_QUERY) {
         return RSCP_ERR_INVALID_ANSWER;
     }
 
@@ -125,7 +149,14 @@ RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t 
     return err;
 }
 
-RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay * reply, uint32_t timeout_ticks){
+/**
+ * @brief Sends a switch relay request and receives the reply.
+ *
+ * @param reply Pointer to the reply structure to be filled.
+ * @param timeout_ticks The timeout duration in ticks.
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay *reply, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
     uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
@@ -140,26 +171,26 @@ RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay * reply, uin
     txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
     txBuffer[txBufferIndex++] = (crc & 0xFF);
 
-    if ( rscpSendSlotCallback(txBuffer, txBufferIndex) < 0){
+    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
         return RSCP_ERR_TX_FAILED;
     }
 
     struct RSCP_frame frame;
     uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + sizeof(struct RSCP_Reply_switchrelay) + sizeof(frame.crc);
 
-    if ( rscpRequestSlotCallback(rxBufferMaxLength) < 0){
+    if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
         return RSCP_ERR_REQUEST_FAILED;
     }
 
-    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
+    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
         return err;
     }
 
-    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
+    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
         return RSCP_ERR_MALFORMED;
     }
 
-    if(frame.command != RSCP_CMD_GET_SWITCH_RELAY){
+    if (frame.command != RSCP_CMD_GET_SWITCH_RELAY) {
         return RSCP_ERR_INVALID_ANSWER;
     }
 
@@ -170,7 +201,14 @@ RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay * reply, uin
     return err;
 }
 
-RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_t timeout_ticks){
+/**
+ * @brief Sends a buzzer action request.
+ *
+ * @param arg Pointer to the buzzer action argument.
+ * @param timeout_ticks The timeout duration in ticks.
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action *arg, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
     uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
@@ -188,26 +226,26 @@ RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_
     txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
     txBuffer[txBufferIndex++] = (crc & 0xFF);
 
-    if ( rscpSendSlotCallback(txBuffer, txBufferIndex) < 0){
+    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
         return RSCP_ERR_TX_FAILED;
     }
 
     struct RSCP_frame frame;
     uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + 1 + sizeof(frame.crc);
 
-    if ( rscpRequestSlotCallback(rxBufferMaxLength) < 0){
+    if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
         return RSCP_ERR_REQUEST_FAILED;
     }
 
-    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
+    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
         return err;
     }
 
-    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
+    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
         return RSCP_ERR_MALFORMED;
     }
 
-    if(frame.command != RSCP_CMD_SET_BUZZER_ACTION){
+    if (frame.command != RSCP_CMD_SET_BUZZER_ACTION) {
         return RSCP_ERR_INVALID_ANSWER;
     }
 
@@ -216,7 +254,12 @@ RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_
 
 #else
 
-RSCP_ErrorType rscpHandleCPUQuery(void){
+/**
+ * @brief Handles the CPU query request from the master.
+ *
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpHandleCPUQuery(void) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
     uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
@@ -229,7 +272,7 @@ RSCP_ErrorType rscpHandleCPUQuery(void){
     reply.cpuType = RSCP_DEF_CPU_TYPE_ATMEGA328P_8MHZ;
     reply.swversion = RSCP_DEF_SWVERSION_VERSION;
     reply.packetMaxLen = sizeof(struct RSCP_frame);
-    
+
     // Fill txBuffer
     txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
     txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Reply_cpuquery);
@@ -242,14 +285,19 @@ RSCP_ErrorType rscpHandleCPUQuery(void){
     uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
     txBuffer[txBufferIndex++] = (crc >> 8);
     txBuffer[txBufferIndex++] = (crc & 0xFF);
-    
-    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+
+    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
         err = RSCP_ERR_TX_FAILED;
     }
     return err;
 }
 
-RSCP_ErrorType rscpGetShutterPosition(void){
+/**
+ * @brief Sends a shutter position request to the master.
+ *
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpGetShutterPosition(void) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
     uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
@@ -268,13 +316,18 @@ RSCP_ErrorType rscpGetShutterPosition(void){
     txBuffer[txBufferIndex++] = (crc >> 8);
     txBuffer[txBufferIndex++] = (crc & 0xFF);
 
-    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
         err = RSCP_ERR_TX_FAILED;
     }
     return err;
 }
 
-RSCP_ErrorType rscpGetSwitchRelay(void){
+/**
+ * @brief Sends a switch relay request to the master.
+ *
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpGetSwitchRelay(void) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
     uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
@@ -293,13 +346,20 @@ RSCP_ErrorType rscpGetSwitchRelay(void){
     txBuffer[txBufferIndex++] = (crc >> 8);
     txBuffer[txBufferIndex++] = (crc & 0xFF);
 
-    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
         err = RSCP_ERR_TX_FAILED;
     }
     return err;
 }
 
-RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode){
+/**
+ * @brief Sends an answer to the master.
+ *
+ * @param command The command byte to respond to.
+ * @param errorCode The error code to send.
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     uint32_t txBufferIndex = 0;
     uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
@@ -313,25 +373,31 @@ RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode){
     txBuffer[txBufferIndex++] = (crc >> 8);
     txBuffer[txBufferIndex++] = (crc & 0xFF);
 
-    if ( (rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0){
+    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
         err = RSCP_ERR_TX_FAILED;
     }
     return err;
 }
 
-RSCP_ErrorType rscpHandle(uint32_t timeout_ticks){
+/**
+ * @brief Handles incoming RSCP messages from the master.
+ *
+ * @param timeout_ticks The timeout duration in ticks.
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpHandle(uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
     struct RSCP_frame frame;
 
-    if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
+    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
         return err;
     }
-    
-    if(rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc){
+
+    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
         return RSCP_ERR_MALFORMED;
     }
 
-    switch (frame.command){
+    switch (frame.command) {
         case RSCP_CMD_CPU_QUERY:
             return rscpHandleCPUQuery();
         case RSCP_CMD_SET_SHUTTER_ACTION:
