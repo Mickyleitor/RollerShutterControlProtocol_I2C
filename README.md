@@ -64,9 +64,9 @@ The RSCP frame is the fundamental unit of communication in the protocol. It cons
 The RSCP frame structure is as follows:
 
 ```
-   +-------------------+-------------------+-------------------+-------------------+-------------------+
-   |   Preamble (8)   |   Length (8)     |   Command (8)    |   Data (0-208)   |   CRC (16)        |
-   +-------------------+-------------------+-------------------+-------------------+-------------------+
+   +----------------+--------------+----------------+----------------+-------------+
+   |   Preamble (8) |   Length (8) |   Command (8)  |  Data (0-208)  |   CRC (16)  |
+   +----------------+--------------+----------------+----------------+-------------+
 ```
 
 - **Preamble (8 bits)**: The preamble byte is a synchronization byte that helps devices identify the start of a new frame. It is always set to `0xAA` (10101010 in binary).

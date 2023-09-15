@@ -322,7 +322,6 @@ RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode){
 RSCP_ErrorType rscpHandle(uint32_t timeout_ticks){
     RSCP_ErrorType err = RSCP_ERR_OK;
     struct RSCP_frame frame;
-    memset(&frame, 0, sizeof(frame));
 
     if( (err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK){
         return err;

@@ -136,6 +136,7 @@ RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_
 #else
 
 RSCP_ErrorType rscpHandle(uint32_t timeout_ticks);
+RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode);
 
 #endif
 
