@@ -35,6 +35,7 @@
 #define RSCP_CMD_SET_SWITCH_RELAY                                       (0x0007) // Set switch relay
 #define RSCP_CMD_GET_SWITCH_RELAY                                       (0x0008) // Get switch relay
 #define RSCP_CMD_SET_BUZZER_ACTION                                      (0x0009) // Set buzzer action
+#define RSCP_CMD_GET_SWITCH_BUTTON                                      (0x000A) // Get switch button
 
 // RSCP_CMD_CPU_QUERY
 #define RSCP_DEF_PROTOCOL_VERSION                                         (0x01)
@@ -53,6 +54,10 @@
 // RSCP_CMD_SWITCH_RELAY
 #define RSCP_DEF_SWITCH_RELAY_OFF                                         (0x01)
 #define RSCP_DEF_SWITCH_RELAY_ON                                          (0x02)
+
+// RSCP_CMD_SWITCH_BUTTON
+#define RSCP_DEF_SWITCH_BUTTON_OFF                                        (0x01)
+#define RSCP_DEF_SWITCH_BUTTON_ON                                         (0x02)
 
 // RSCP_CMD_BUZZER_ACTION
 #define RSCP_DEF_BUZZER_ACTION_ON                                         (0x01)
@@ -127,10 +132,16 @@ struct __attribute__ ((__packed__)) RSCP_Reply_switchrelay
     uint8_t status;
 };
 
+struct __attribute__ ((__packed__)) RSCP_Reply_switchbutton
+{
+    uint8_t status;
+};
+
 #if RSCP_DEVICE_IS_MASTER
 
 RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t timeout_ticks);
 RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay * reply, uint32_t timeout_ticks);
+RSCP_ErrorType rscpRequestSwitchButton(struct RSCP_Reply_switchbutton * reply, uint32_t timeout_ticks);
 RSCP_ErrorType rscpSendSwitchRelay(struct RSCP_Arg_switchrelay *arg, uint32_t timeout_ticks);
 RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_t timeout_ticks);
 

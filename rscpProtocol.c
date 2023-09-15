@@ -74,7 +74,11 @@ RSCP_ErrorType rscpGetMsg(struct RSCP_frame *frame, uint32_t timeout_ticks) {
                 break;
             case 1: // Waiting for command byte
                 frame->command = readByte;
-                rscpRxStatus = 2;
+                if( frame->length > 2) {
+                    rscpRxStatus = 2;   // Data bytes will follow, request them
+                }else{
+                    rscpRxStatus = 3;   // No data bytes will follow, go to CRC
+                }
                 break;
             case 2: // Waiting for data bytes
                 frame->data[bufferIndex++] = readByte;
@@ -95,6 +99,37 @@ RSCP_ErrorType rscpGetMsg(struct RSCP_frame *frame, uint32_t timeout_ticks) {
     return RSCP_ERR_OVERFLOW;
 }
 
+/**
+ * @brief Sends an RSCP message.
+ * 
+ * @param command This is the command byte to send.
+ * @param data Pointer to the data to be sent.
+ * @param dataLength Length of the data to be sent.
+ * @return RSCP error code. 
+ */
+RSCP_ErrorType rscpSendMsg(uint8_t command, uint8_t* data, uint8_t dataLength) {
+    uint32_t txBufferIndex = 0;
+    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+
+    // Fill txBuffer
+    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
+    txBuffer[txBufferIndex++] = 2 + dataLength;
+    txBuffer[txBufferIndex++] = command;
+
+    memcpy(&txBuffer[txBufferIndex], data, dataLength);
+    txBufferIndex += dataLength;
+
+    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBufferIndex - 1);
+    txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
+    txBuffer[txBufferIndex++] = (crc & 0xFF);
+
+    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
+        return RSCP_ERR_TX_FAILED;
+    }
+
+    return RSCP_ERR_OK;
+}
+
 #if RSCP_DEVICE_IS_MASTER
 
 /**
@@ -106,21 +141,11 @@ RSCP_ErrorType rscpGetMsg(struct RSCP_frame *frame, uint32_t timeout_ticks) {
  */
 RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery *reply, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
 
-    // Fill txBuffer
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = 3;                  // Length + cmd + data (unused data)
-    txBuffer[txBufferIndex++] = RSCP_CMD_CPU_QUERY;
-    txBuffer[txBufferIndex++] = 0x00;               // No data
+    uint8_t data [] = { 0x00 }; // No data
 
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBufferIndex - 1);
-    txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
-        return RSCP_ERR_TX_FAILED;
+    if ( (err = rscpSendMsg(RSCP_CMD_CPU_QUERY, (uint8_t*)&data[0], sizeof(data))) != RSCP_ERR_OK) {
+        return err;
     }
 
     struct RSCP_frame frame;
@@ -158,21 +183,11 @@ RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery *reply, uint32_t t
  */
 RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay *reply, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
 
-    // Fill txBuffer
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = 3;
-    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SWITCH_RELAY;
-    txBuffer[txBufferIndex++] = 0x00;               // No data
+    uint8_t data [] = { 0x00 }; // No data
 
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBufferIndex - 1);
-    txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
-        return RSCP_ERR_TX_FAILED;
+    if ( (err = rscpSendMsg(RSCP_CMD_GET_SWITCH_RELAY, (uint8_t*)&data[0], sizeof(data))) != RSCP_ERR_OK) {
+        return err;
     }
 
     struct RSCP_frame frame;
@@ -202,6 +217,48 @@ RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay *reply, uint
 }
 
 /**
+ * @brief Sends a switch button request and receives the reply.
+ *
+ * @param reply Pointer to the reply structure to be filled.
+ * @param timeout_ticks The timeout duration in ticks.
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpRequestSwitchButton(struct RSCP_Reply_switchbutton *reply, uint32_t timeout_ticks) {
+    RSCP_ErrorType err = RSCP_ERR_OK;
+
+    uint8_t data [] = { 0x00 }; // No data
+
+    if ( (err = rscpSendMsg(RSCP_CMD_GET_SWITCH_BUTTON, (uint8_t*)&data[0], sizeof(data))) != RSCP_ERR_OK) {
+        return err;
+    }
+
+    struct RSCP_frame frame;
+    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + sizeof(struct RSCP_Reply_switchbutton) + sizeof(frame.crc);
+
+    if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
+        return RSCP_ERR_REQUEST_FAILED;
+    }
+
+    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
+        return err;
+    }
+
+    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
+        return RSCP_ERR_MALFORMED;
+    }
+
+    if (frame.command != RSCP_CMD_GET_SWITCH_BUTTON) {
+        return RSCP_ERR_INVALID_ANSWER;
+    }
+
+    for (uint32_t i = 0; i < sizeof(struct RSCP_Reply_switchbutton); i++) {
+        ((uint8_t *)reply)[i] = frame.data[i];
+    }
+
+    return err;
+}
+
+/**
  * @brief Sends a switch relay action and receives the reply.
  * 
  * @param reply Pointer to the switch relay action argument.
@@ -210,24 +267,9 @@ RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay *reply, uint
  */
 RSCP_ErrorType rscpSendSwitchRelay(struct RSCP_Arg_switchrelay *arg, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
 
-    // Fill txBuffer
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Arg_switchrelay);
-    txBuffer[txBufferIndex++] = RSCP_CMD_SET_SWITCH_RELAY;
-
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], arg, sizeof(struct RSCP_Arg_switchrelay));
-    txBufferIndex += sizeof(struct RSCP_Arg_switchrelay);
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBufferIndex - 1);
-    txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
-        return RSCP_ERR_TX_FAILED;
+    if ( (err = rscpSendMsg(RSCP_CMD_SET_SWITCH_RELAY, (uint8_t*)&arg[0], sizeof(struct RSCP_Arg_switchrelay))) != RSCP_ERR_OK) {
+        return err;
     }
 
     struct RSCP_frame frame;
@@ -261,24 +303,9 @@ RSCP_ErrorType rscpSendSwitchRelay(struct RSCP_Arg_switchrelay *arg, uint32_t ti
  */
 RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action *arg, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
 
-    // Fill txBuffer
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Arg_buzzer_action);
-    txBuffer[txBufferIndex++] = RSCP_CMD_SET_BUZZER_ACTION;
-
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], arg, sizeof(struct RSCP_Arg_buzzer_action));
-    txBufferIndex += sizeof(struct RSCP_Arg_buzzer_action);
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBufferIndex - 1);
-    txBuffer[txBufferIndex++] = (crc >> 8) & 0xFF;
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if (rscpSendSlotCallback(txBuffer, txBufferIndex) < 0) {
-        return RSCP_ERR_TX_FAILED;
+    if ( (err = rscpSendMsg(RSCP_CMD_SET_BUZZER_ACTION, (uint8_t*)&arg[0], sizeof(struct RSCP_Arg_buzzer_action))) != RSCP_ERR_OK) {
+        return err;
     }
 
     struct RSCP_frame frame;
@@ -306,14 +333,11 @@ RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action *arg, uint32_t
 #else
 
 /**
- * @brief Handles the CPU query request from the master.
+ * @brief Sends a CPU query request to the master.
  *
  * @return RSCP error code.
  */
-RSCP_ErrorType rscpHandleCPUQuery(void) {
-    RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
+RSCP_ErrorType rscpGetCPUQuery(void) {
 
     // Fill reply
     struct RSCP_Reply_cpuquery reply;
@@ -324,23 +348,7 @@ RSCP_ErrorType rscpHandleCPUQuery(void) {
     reply.swversion = RSCP_DEF_SWVERSION_VERSION;
     reply.packetMaxLen = sizeof(struct RSCP_frame);
 
-    // Fill txBuffer
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = 2 + sizeof(struct RSCP_Reply_cpuquery);
-    txBuffer[txBufferIndex++] = RSCP_CMD_CPU_QUERY;
-
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_cpuquery));
-    txBufferIndex += sizeof(struct RSCP_Reply_cpuquery);
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
-    txBuffer[txBufferIndex++] = (crc >> 8);
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
-        err = RSCP_ERR_TX_FAILED;
-    }
-    return err;
+    return rscpSendMsg(RSCP_CMD_CPU_QUERY, (uint8_t*)&reply, sizeof(struct RSCP_Reply_cpuquery));
 }
 
 /**
@@ -349,28 +357,12 @@ RSCP_ErrorType rscpHandleCPUQuery(void) {
  * @return RSCP error code.
  */
 RSCP_ErrorType rscpGetShutterPosition(void) {
-    RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
 
+    // Fill reply
     struct RSCP_Reply_rollershutterposition reply;
-    (void)rscpGetShutterPositionCallback(&reply);
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Reply_rollershutterposition) + 2;
-    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SHUTTER_POSITION;
+    rscpGetShutterPositionCallback(&reply);
 
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_rollershutterposition));
-    txBufferIndex += sizeof(struct RSCP_Reply_rollershutterposition);
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
-    txBuffer[txBufferIndex++] = (crc >> 8);
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
-        err = RSCP_ERR_TX_FAILED;
-    }
-    return err;
+    return rscpSendMsg(RSCP_CMD_GET_SHUTTER_POSITION, (uint8_t*)&reply, sizeof(struct RSCP_Reply_rollershutterposition));
 }
 
 /**
@@ -379,28 +371,26 @@ RSCP_ErrorType rscpGetShutterPosition(void) {
  * @return RSCP error code.
  */
 RSCP_ErrorType rscpGetSwitchRelay(void) {
-    RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
 
+    // Fill reply
     struct RSCP_Reply_switchrelay reply;
     rscpGetSwitchRelayCallback(&reply);
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = sizeof(struct RSCP_Reply_switchrelay) + 2;
-    txBuffer[txBufferIndex++] = RSCP_CMD_GET_SWITCH_RELAY;
+    
+    return rscpSendMsg(RSCP_CMD_GET_SWITCH_RELAY, (uint8_t*)&reply, sizeof(struct RSCP_Reply_switchrelay));
+}
 
-    // Use memcpy to copy struct data to txBuffer
-    memcpy(&txBuffer[txBufferIndex], &reply, sizeof(struct RSCP_Reply_switchrelay));
-    txBufferIndex += sizeof(struct RSCP_Reply_switchrelay);
+/**
+ * @brief Sends a switch button request to the master.
+ *
+ * @return RSCP error code.
+ */
+RSCP_ErrorType rscpGetSwitchButton(void) {
 
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
-    txBuffer[txBufferIndex++] = (crc >> 8);
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
-        err = RSCP_ERR_TX_FAILED;
-    }
-    return err;
+    // Fill reply
+    struct RSCP_Reply_switchbutton reply;
+    rscpGetSwitchButtonCallback(&reply);
+    
+    return rscpSendMsg(RSCP_CMD_GET_SWITCH_BUTTON, (uint8_t*)&reply, sizeof(struct RSCP_Reply_switchbutton));
 }
 
 /**
@@ -411,23 +401,11 @@ RSCP_ErrorType rscpGetSwitchRelay(void) {
  * @return RSCP error code.
  */
 RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode) {
-    RSCP_ErrorType err = RSCP_ERR_OK;
-    uint32_t txBufferIndex = 0;
-    uint8_t txBuffer[RSCP_MAX_TX_BUFFER_SIZE];
 
-    txBuffer[txBufferIndex++] = RSCP_PREAMBLE_BYTE;
-    txBuffer[txBufferIndex++] = 3;
-    txBuffer[txBufferIndex++] = command;
-    txBuffer[txBufferIndex++] = errorCode;
-
-    uint16_t crc = rscpGetCrcCallback(&txBuffer[1], txBuffer[1]);
-    txBuffer[txBufferIndex++] = (crc >> 8);
-    txBuffer[txBufferIndex++] = (crc & 0xFF);
-
-    if ((rscpSendSlotCallback(txBuffer, txBufferIndex)) < 0) {
-        err = RSCP_ERR_TX_FAILED;
-    }
-    return err;
+    // Fill reply
+    uint8_t data [] = { errorCode };
+    
+    return rscpSendMsg(command, (uint8_t*)&data, sizeof(data));
 }
 
 /**
@@ -450,20 +428,22 @@ RSCP_ErrorType rscpHandle(uint32_t timeout_ticks) {
 
     switch (frame.command) {
         case RSCP_CMD_CPU_QUERY:
-            return rscpHandleCPUQuery();
+            return rscpGetCPUQuery();
+        case RSCP_CMD_GET_SHUTTER_POSITION:
+            return rscpGetShutterPosition();
+        case RSCP_CMD_GET_SWITCH_RELAY:
+            return rscpGetSwitchRelay();
+        case RSCP_CMD_GET_SWITCH_BUTTON:
+            return rscpGetSwitchRelay();
         case RSCP_CMD_SET_SHUTTER_ACTION:
             err = rscpSetShutterActionCallback((struct RSCP_Arg_rollershutter *)&frame.data[0]);
             break;
         case RSCP_CMD_SET_SHUTTER_POSITION:
             err = rscpSetShutterPositionCallback((struct RSCP_Arg_rollershutterposition *)&frame.data[0]);
             break;
-        case RSCP_CMD_GET_SHUTTER_POSITION:
-            return rscpGetShutterPosition();
         case RSCP_CMD_SET_SWITCH_RELAY:
             err = rscpSetSwitchRelayCallback((struct RSCP_Arg_switchrelay *)&frame.data[0]);
             break;
-        case RSCP_CMD_GET_SWITCH_RELAY:
-            return rscpGetSwitchRelay();
         case RSCP_CMD_SET_BUZZER_ACTION:
             err = rscpSetBuzzerActionCallback((struct RSCP_Arg_buzzer_action *)&frame.data[0]);
             break;
