@@ -139,16 +139,12 @@ struct __attribute__ ((__packed__)) RSCP_Reply_switchbutton
 
 #if RSCP_DEVICE_IS_MASTER
 
-RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery * reply, uint32_t timeout_ticks);
-RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay * reply, uint32_t timeout_ticks);
-RSCP_ErrorType rscpRequestSwitchButton(struct RSCP_Reply_switchbutton * reply, uint32_t timeout_ticks);
-RSCP_ErrorType rscpSendSwitchRelay(struct RSCP_Arg_switchrelay *arg, uint32_t timeout_ticks);
-RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action * arg, uint32_t timeout_ticks);
+RSCP_ErrorType rscpRequestData(uint8_t command, uint8_t * data, uint8_t dataLength, uint32_t timeout_ticks);
+RSCP_ErrorType rscpSendAction(uint8_t command, uint8_t * data, uint8_t dataLength, uint32_t timeout_ticks);
 
 #else
 
 RSCP_ErrorType rscpHandle(uint32_t timeout_ticks);
-RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode);
 
 #endif
 

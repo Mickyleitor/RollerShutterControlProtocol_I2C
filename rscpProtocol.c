@@ -133,147 +133,25 @@ RSCP_ErrorType rscpSendMsg(uint8_t command, uint8_t* data, uint8_t dataLength) {
 #if RSCP_DEVICE_IS_MASTER
 
 /**
- * @brief Sends a CPU query request and receives the reply.
- *
- * @param reply Pointer to the reply structure to be filled.
- * @param timeout_ticks The timeout duration in ticks.
- * @return RSCP error code.
- */
-RSCP_ErrorType rscpRequestCPUQuery(struct RSCP_Reply_cpuquery *reply, uint32_t timeout_ticks) {
-    RSCP_ErrorType err = RSCP_ERR_OK;
-
-    uint8_t data [] = { 0x00 }; // No data
-
-    if ( (err = rscpSendMsg(RSCP_CMD_CPU_QUERY, (uint8_t*)&data[0], sizeof(data))) != RSCP_ERR_OK) {
-        return err;
-    }
-
-    struct RSCP_frame frame;
-    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + sizeof(struct RSCP_Reply_cpuquery) + sizeof(frame.crc);
-
-    if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
-        return RSCP_ERR_REQUEST_FAILED;
-    }
-
-    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
-        return err;
-    }
-
-    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
-        return RSCP_ERR_MALFORMED;
-    }
-
-    if (frame.command != RSCP_CMD_CPU_QUERY) {
-        return RSCP_ERR_INVALID_ANSWER;
-    }
-
-    for (uint32_t i = 0; i < sizeof(struct RSCP_Reply_cpuquery); i++) {
-        ((uint8_t *)reply)[i] = frame.data[i];
-    }
-
-    return err;
-}
-
-/**
- * @brief Sends a switch relay request and receives the reply.
- *
- * @param reply Pointer to the reply structure to be filled.
- * @param timeout_ticks The timeout duration in ticks.
- * @return RSCP error code.
- */
-RSCP_ErrorType rscpRequestSwitchRelay(struct RSCP_Reply_switchrelay *reply, uint32_t timeout_ticks) {
-    RSCP_ErrorType err = RSCP_ERR_OK;
-
-    uint8_t data [] = { 0x00 }; // No data
-
-    if ( (err = rscpSendMsg(RSCP_CMD_GET_SWITCH_RELAY, (uint8_t*)&data[0], sizeof(data))) != RSCP_ERR_OK) {
-        return err;
-    }
-
-    struct RSCP_frame frame;
-    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + sizeof(struct RSCP_Reply_switchrelay) + sizeof(frame.crc);
-
-    if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
-        return RSCP_ERR_REQUEST_FAILED;
-    }
-
-    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
-        return err;
-    }
-
-    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
-        return RSCP_ERR_MALFORMED;
-    }
-
-    if (frame.command != RSCP_CMD_GET_SWITCH_RELAY) {
-        return RSCP_ERR_INVALID_ANSWER;
-    }
-
-    for (uint32_t i = 0; i < sizeof(struct RSCP_Reply_switchrelay); i++) {
-        ((uint8_t *)reply)[i] = frame.data[i];
-    }
-
-    return err;
-}
-
-/**
- * @brief Sends a switch button request and receives the reply.
- *
- * @param reply Pointer to the reply structure to be filled.
- * @param timeout_ticks The timeout duration in ticks.
- * @return RSCP error code.
- */
-RSCP_ErrorType rscpRequestSwitchButton(struct RSCP_Reply_switchbutton *reply, uint32_t timeout_ticks) {
-    RSCP_ErrorType err = RSCP_ERR_OK;
-
-    uint8_t data [] = { 0x00 }; // No data
-
-    if ( (err = rscpSendMsg(RSCP_CMD_GET_SWITCH_BUTTON, (uint8_t*)&data[0], sizeof(data))) != RSCP_ERR_OK) {
-        return err;
-    }
-
-    struct RSCP_frame frame;
-    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + sizeof(struct RSCP_Reply_switchbutton) + sizeof(frame.crc);
-
-    if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
-        return RSCP_ERR_REQUEST_FAILED;
-    }
-
-    if ((err = rscpGetMsg(&frame, timeout_ticks)) != RSCP_ERR_OK) {
-        return err;
-    }
-
-    if (rscpGetCrcCallback(((uint8_t *)&frame), frame.length) != frame.crc) {
-        return RSCP_ERR_MALFORMED;
-    }
-
-    if (frame.command != RSCP_CMD_GET_SWITCH_BUTTON) {
-        return RSCP_ERR_INVALID_ANSWER;
-    }
-
-    for (uint32_t i = 0; i < sizeof(struct RSCP_Reply_switchbutton); i++) {
-        ((uint8_t *)reply)[i] = frame.data[i];
-    }
-
-    return err;
-}
-
-/**
- * @brief Sends a switch relay action and receives the reply.
+ * @brief Sends a data request and receives the reply from the slave.
  * 
- * @param reply Pointer to the switch relay action argument.
+ * @param command command byte of the type of data to request.
+ * @param reply Pointer to the reply data that is to be filled.
+ * @param replyLength Length of the reply data to be filled.
  * @param timeout_ticks The timeout duration in ticks.
- * @return RSCP error code.
+ * @return RSCP_ErrorType 
  */
-RSCP_ErrorType rscpSendSwitchRelay(struct RSCP_Arg_switchrelay *arg, uint32_t timeout_ticks) {
+RSCP_ErrorType rscpRequestData(uint8_t command, uint8_t * reply, uint8_t replyLength, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
 
-    if ( (err = rscpSendMsg(RSCP_CMD_SET_SWITCH_RELAY, (uint8_t*)&arg[0], sizeof(struct RSCP_Arg_switchrelay))) != RSCP_ERR_OK) {
+    uint8_t data [] = { 0x00 }; // No data
+
+    if ( (err = rscpSendMsg(command, (uint8_t*)&data[0], sizeof(data))) != RSCP_ERR_OK) {
         return err;
     }
 
     struct RSCP_frame frame;
-    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + 1 + sizeof(frame.crc);
+    uint32_t rxBufferMaxLength = 1 + sizeof(frame.length) + sizeof(frame.command) + replyLength + sizeof(frame.crc);
 
     if (rscpRequestSlotCallback(rxBufferMaxLength) < 0) {
         return RSCP_ERR_REQUEST_FAILED;
@@ -287,24 +165,29 @@ RSCP_ErrorType rscpSendSwitchRelay(struct RSCP_Arg_switchrelay *arg, uint32_t ti
         return RSCP_ERR_MALFORMED;
     }
 
-    if (frame.command != RSCP_CMD_SET_SWITCH_RELAY) {
+    if (frame.command != command) {
         return RSCP_ERR_INVALID_ANSWER;
     }
 
-    return (RSCP_ErrorType)frame.data[0];
+    for(uint32_t i = 0; i < replyLength; i++) {
+        reply[i] = frame.data[i];
+    }
+
+    return err;
 }
 
 /**
- * @brief Sends a buzzer action request.
- *
- * @param arg Pointer to the buzzer action argument.
+ * @brief Sends a command action and receives the reply.
+ * 
+ * @param command The command byte of the type of action to send.
+ * @param reply Pointer to the action argument.
  * @param timeout_ticks The timeout duration in ticks.
  * @return RSCP error code.
  */
-RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action *arg, uint32_t timeout_ticks) {
+RSCP_ErrorType rscpSendAction(uint8_t command, uint8_t *data, uint8_t dataLength, uint32_t timeout_ticks) {
     RSCP_ErrorType err = RSCP_ERR_OK;
 
-    if ( (err = rscpSendMsg(RSCP_CMD_SET_BUZZER_ACTION, (uint8_t*)&arg[0], sizeof(struct RSCP_Arg_buzzer_action))) != RSCP_ERR_OK) {
+    if ( (err = rscpSendMsg(command, (uint8_t*)&data[0], dataLength)) != RSCP_ERR_OK) {
         return err;
     }
 
@@ -323,7 +206,7 @@ RSCP_ErrorType rscpSendBuzzerAction(struct RSCP_Arg_buzzer_action *arg, uint32_t
         return RSCP_ERR_MALFORMED;
     }
 
-    if (frame.command != RSCP_CMD_SET_BUZZER_ACTION) {
+    if (frame.command != command) {
         return RSCP_ERR_INVALID_ANSWER;
     }
 
@@ -400,7 +283,7 @@ RSCP_ErrorType rscpGetSwitchButton(void) {
  * @param errorCode The error code to send.
  * @return RSCP error code.
  */
-RSCP_ErrorType rscpSendAnswer(uint8_t command, uint8_t errorCode) {
+RSCP_ErrorType rscpSendFail(uint8_t command, uint8_t errorCode) {
 
     // Fill reply
     uint8_t data [] = { errorCode };
@@ -452,7 +335,7 @@ RSCP_ErrorType rscpHandle(uint32_t timeout_ticks) {
             break;
     }
 
-    return rscpSendAnswer(frame.command, err);
+    return rscpSendFail(frame.command, err);
 }
 
 #endif
