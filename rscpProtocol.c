@@ -317,7 +317,7 @@ RSCP_ErrorType rscpHandle(uint32_t timeout_ticks) {
         case RSCP_CMD_GET_SWITCH_RELAY:
             return rscpGetSwitchRelay();
         case RSCP_CMD_GET_SWITCH_BUTTON:
-            return rscpGetSwitchRelay();
+            return rscpGetSwitchButton();
         case RSCP_CMD_SET_SHUTTER_ACTION:
             err = rscpSetShutterActionCallback((struct RSCP_Arg_rollershutter *)&frame.data[0]);
             break;

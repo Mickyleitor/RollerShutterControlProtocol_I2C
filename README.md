@@ -51,6 +51,7 @@ RSCP defines several commands that facilitate communication between devices. Eac
 - `RSCP_CMD_GET_SHUTTER_POSITION`: Get shutter position.
 - `RSCP_CMD_SET_SWITCH_RELAY`: Set switch relay status (on or off).
 - `RSCP_CMD_GET_SWITCH_RELAY`: Get switch relay status.
+- `RSCP_CMD_GET_SWITCH_BUTTON`: Get switch button status.
 - `RSCP_CMD_SET_BUZZER_ACTION`: Set buzzer action (on or off).
 
 Refer to the header file for a complete list of commands and their details.
